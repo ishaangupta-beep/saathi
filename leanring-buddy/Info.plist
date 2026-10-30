@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>LSUIElement</key>
+	<true/>
+	<key>VoiceTranscriptionProvider</key>
+	<string>apple</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Saathi uses your microphone so you can talk to it</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Saathi needs screen recording access to see your screen when you press the hotkey.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Saathi uses on-device speech recognition to understand what you say</string>
+</dict>
+</plist>

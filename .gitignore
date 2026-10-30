@@ -1,0 +1,22 @@
+# Secrets
+.env
+*.env
+!.env.example
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+# macOS
+.DS_Store
+
+# SwiftPM (no-Xcode build)
+.build/
+.swiftpm/
+
+# Local notes and parked files
+_parked/
+gemini-settings.txt
