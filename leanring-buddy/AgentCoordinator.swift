@@ -515,6 +515,24 @@ final class AgentCoordinator: ObservableObject {
             var stepWasDoneByUser = true
 
             switch effectiveTrustLevel {
+            case .showMe where Self.saathiDoesThisStepItself(currentStep.action),
+                 .walkMeThrough where Self.saathiDoesThisStepItself(currentStep.action):
+                // Opening a website, scrolling or waiting isn't something to
+                // teach with a ring (there's nothing to click), and asking the
+                // user to do it made Walk me repeat "open the site" forever.
+                // Saathi does these itself, then goes back to guiding.
+                present(step: currentStep, ringMode: .walkMeThrough, targetFrame: targetFrame, stepLabelText: stepLabelText)
+                statusText = "Step \(stepNumber): \(currentStep.action == .openURL ? "opening the site" : "getting ready")"
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                if Task.isCancelled { return }
+                AccessibilityTreeReader.activateTargetApplicationIfNeeded()
+                let signatureBeforeAction = Self.screenSignature(of: observation.accessibilitySnapshot)
+                signatureBeforeLastAction = signatureBeforeAction
+                await perform(step: currentStep, targetElement: targetElement, observation: observation)
+                stepWasDoneByUser = false
+                stepOutcome = "done by \(SaathiConfiguration.productName)"
+                await waitForScreenToSettle(changedFrom: signatureBeforeAction, minimumSeconds: 1.0, maximumSeconds: 3.0)
+
             case .showMe, .walkMeThrough:
                 let ringMode: RingPresentationMode = needsUserInput ? .yourTurn : (effectiveTrustLevel == .showMe ? .showMe : .walkMeThrough)
                 present(step: currentStep, ringMode: ringMode, targetFrame: targetFrame, stepLabelText: stepLabelText)
@@ -1207,6 +1225,11 @@ final class AgentCoordinator: ObservableObject {
     }
 
     // MARK: Safety heuristics
+
+    /// Steps with nothing for the user to click: in Walk me, Saathi does these itself.
+    static func saathiDoesThisStepItself(_ action: PlannedAgentStep.Action) -> Bool {
+        action == .openURL || action == .scroll || action == .wait
+    }
 
     /// Enter is only pressed automatically on a search box, never on a form
     /// field, so "submit" can't send or pay for anything.
