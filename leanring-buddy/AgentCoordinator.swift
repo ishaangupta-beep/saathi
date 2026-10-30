@@ -10,7 +10,7 @@
 //         plan    (Nemotron Super on the element list; Omni on the screenshot
 //                  when the tree is empty, e.g. canvas apps)
 //         present (marigold ring + caption + voice)
-//         act or wait, depending on the trust dial
+//         act (pausing for anything private or irreversible)
 //    3. After a successful live run → offer to save it as a skill
 //
 //  Safety rules enforced in code, not only in the prompt:
@@ -111,13 +111,10 @@ final class AgentCoordinator: ObservableObject {
 
     private var currentRunTask: Task<Void, Never>?
     private var pendingUserResponseContinuation: CheckedContinuation<UserStepResponse, Never>?
-    /// In Walk mode, a click inside this rect (AppKit coordinates) counts as "done, next step".
-    private var clickToAdvanceTargetRect: CGRect?
     private var transientCaptionClearTask: Task<Void, Never>?
 
     private var escapeKeyGlobalMonitor: Any?
     private var escapeKeyLocalMonitor: Any?
-    private var mouseClickGlobalMonitor: Any?
 
     private let maximumAutonomousSteps = 15
     private let maximumTotalSteps = 30
@@ -155,27 +152,6 @@ final class AgentCoordinator: ObservableObject {
                 }
             }
             return keyEvent
-        }
-
-        // Walk mode: the user's own click on the highlighted target advances the step.
-        mouseClickGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
-            let clickLocation = NSEvent.mouseLocation
-            MainActor.assumeIsolated {
-                self?.handleUserClick(atAppKitLocation: clickLocation)
-            }
-        }
-    }
-
-    private func handleUserClick(atAppKitLocation clickLocation: CGPoint) {
-        guard let clickToAdvanceTargetRect,
-              clickToAdvanceTargetRect.insetBy(dx: -14, dy: -14).contains(clickLocation) else {
-            return
-        }
-        self.clickToAdvanceTargetRect = nil
-        // Give the click a moment to land in the app before re-reading the screen.
-        Task {
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            self.resolvePendingUserResponse(.continued)
         }
     }
 
@@ -238,7 +214,6 @@ final class AgentCoordinator: ObservableObject {
 
         SystemSpeechTTSClient.shared.stopPlayback()
         resolvePendingUserResponse(.stopped)
-        clickToAdvanceTargetRect = nil
         overlayController.overlayState.isDrivingIndicatorVisible = false
 
         if wasVoiceAnswerActive || wasSpeaking {
@@ -256,7 +231,6 @@ final class AgentCoordinator: ObservableObject {
         currentRunTask?.cancel()
         currentRunTask = nil
         resolvePendingUserResponse(.stopped)
-        clickToAdvanceTargetRect = nil
         SystemSpeechTTSClient.shared.stopPlayback()
         overlayController.overlayState.isDrivingIndicatorVisible = false
         isRunning = false
@@ -294,7 +268,7 @@ final class AgentCoordinator: ObservableObject {
         }
 
         let shortCaption = captionText.count > 160 ? String(captionText.prefix(157)) + "…" : captionText
-        overlayController.present(mode: .showMe, targetFrameInAppKitCoordinates: targetFrame, captionText: shortCaption, stepLabelText: nil)
+        overlayController.present(mode: .pointing, targetFrameInAppKitCoordinates: targetFrame, captionText: shortCaption, stepLabelText: nil)
         scheduleOverlayClear(afterSeconds: 8)
     }
 
@@ -314,8 +288,8 @@ final class AgentCoordinator: ObservableObject {
 
         // Obvious imperatives skip the model call entirely.
         let taskOpeningWords = ["open ", "book ", "download ", "fill ", "go to ", "search ", "find ", "renew ", "apply ",
-                                "pay ", "send ", "click ", "sign in", "log in", "login ", "check my ", "show me how", "help me ",
-                                "take me", "navigate", "start ", "create ", "upload ", "register ", "file my", "walk me"]
+                                "pay ", "send ", "click ", "sign in", "log in", "login ", "check my ", "help me ",
+                                "take me", "navigate", "start ", "create ", "upload ", "register ", "file my"]
         if taskOpeningWords.contains(where: { lowercasedTranscript.hasPrefix($0) }) {
             return true
         }
@@ -382,7 +356,6 @@ final class AgentCoordinator: ObservableObject {
         }
 
         var completedSteps: [CompletedAgentStep] = []
-        var effectiveTrustLevel = trustLevel
         var autonomousActionCount = 0
         var nextSkillStepIndex = 0
         var hasCheckedOfficialDomain = false
@@ -394,20 +367,14 @@ final class AgentCoordinator: ObservableObject {
         stepLoop: for stepNumber in 1...maximumTotalSteps {
             if Task.isCancelled { return }
 
-            // "Just do it" hands control back after 10 autonomous actions.
-            if effectiveTrustLevel == .justDoIt && autonomousActionCount >= maximumAutonomousSteps {
-                effectiveTrustLevel = .walkMeThrough
-                overlayController.overlayState.isDrivingIndicatorVisible = false
-                let handBackMessage = "This is taking a while, so I'll guide you from here instead."
-                SystemSpeechTTSClient.shared.speak(handBackMessage)
-                overlayController.present(mode: .thinking, targetFrameInAppKitCoordinates: nil, captionText: handBackMessage, stepLabelText: nil)
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            // Saathi hands control back after a fixed number of actions, so a
+            // run can never go on indefinitely.
+            if autonomousActionCount >= maximumAutonomousSteps {
+                finalMessage = "This is taking a while, so I'll stop here and hand control back to you."
+                break stepLoop
             }
 
             statusText = "Step \(stepNumber): looking"
-            if effectiveTrustLevel != .justDoIt {
-                overlayController.present(mode: .thinking, targetFrameInAppKitCoordinates: nil, captionText: "", stepLabelText: nil)
-            }
 
             let observation = await observeScreen()
             if Task.isCancelled { return }
@@ -432,8 +399,7 @@ final class AgentCoordinator: ObservableObject {
                     overlayController.present(mode: .awaitingConfirmation, targetFrameInAppKitCoordinates: nil, captionText: warningMessage, stepLabelText: nil)
                     let warningResponse = await waitForUserResponse(
                         promptText: "This may not be the official site.",
-                        buttons: [("Continue anyway", .secondary, .confirmed), ("Stop", .destructive, .declined)],
-                        clickTargetRect: nil
+                        buttons: [("Continue anyway", .secondary, .confirmed), ("Stop", .destructive, .declined)]
                     )
                     if warningResponse != .confirmed {
                         finalMessage = "Stopped on a site that didn't look official."
@@ -514,49 +480,14 @@ final class AgentCoordinator: ObservableObject {
             var stepOutcome = "done"
             var stepWasDoneByUser = true
 
-            switch effectiveTrustLevel {
-            case .showMe where Self.saathiDoesThisStepItself(currentStep.action),
-                 .walkMeThrough where Self.saathiDoesThisStepItself(currentStep.action):
-                // Opening a website, scrolling or waiting isn't something to
-                // teach with a ring (there's nothing to click), and asking the
-                // user to do it made Walk me repeat "open the site" forever.
-                // Saathi does these itself, then goes back to guiding.
-                present(step: currentStep, ringMode: .walkMeThrough, targetFrame: targetFrame, stepLabelText: stepLabelText)
-                statusText = "Step \(stepNumber): \(currentStep.action == .openURL ? "opening the site" : "getting ready")"
-                try? await Task.sleep(nanoseconds: 700_000_000)
-                if Task.isCancelled { return }
-                AccessibilityTreeReader.activateTargetApplicationIfNeeded()
-                let signatureBeforeAction = Self.screenSignature(of: observation.accessibilitySnapshot)
-                signatureBeforeLastAction = signatureBeforeAction
-                await perform(step: currentStep, targetElement: targetElement, observation: observation)
-                stepWasDoneByUser = false
-                stepOutcome = "done by \(SaathiConfiguration.productName)"
-                await waitForScreenToSettle(changedFrom: signatureBeforeAction, minimumSeconds: 1.0, maximumSeconds: 3.0)
-
-            case .showMe, .walkMeThrough:
-                let ringMode: RingPresentationMode = needsUserInput ? .yourTurn : (effectiveTrustLevel == .showMe ? .showMe : .walkMeThrough)
-                present(step: currentStep, ringMode: ringMode, targetFrame: targetFrame, stepLabelText: stepLabelText)
-                statusText = "Step \(stepNumber): your move"
-                let clickAdvancesStep = effectiveTrustLevel == .walkMeThrough && currentStep.action == .click && !needsUserInput
-                let userResponse = await waitForUserResponse(
-                    promptText: effectiveTrustLevel == .showMe ? "Do this step, then tap Next." : (clickAdvancesStep ? "Click the highlighted spot, or tap Next." : "Tap Next when you're done."),
-                    buttons: [("Next", .primary, .continued), ("Stop", .secondary, .stopped)],
-                    clickTargetRect: clickAdvancesStep ? targetFrame : nil
-                )
-                if userResponse == .stopped || Task.isCancelled {
-                    finalMessage = "Stopped. You're in control."
-                    break stepLoop
-                }
-                stepOutcome = needsUserInput ? "you typed it" : "you did it"
-
+            switch trustLevel {
             case .justDoIt:
                 if needsUserInput {
                     present(step: currentStep, ringMode: .yourTurn, targetFrame: targetFrame, stepLabelText: stepLabelText)
                     overlayController.overlayState.isDrivingIndicatorVisible = false
                     let yourTurnResponse = await waitForUserResponse(
                         promptText: "Your turn: type it yourself, then tap Continue.",
-                        buttons: [("Continue", .primary, .continued), ("Stop", .secondary, .stopped)],
-                        clickTargetRect: nil
+                        buttons: [("Continue", .primary, .continued), ("Stop", .secondary, .stopped)]
                     )
                     if yourTurnResponse == .stopped || Task.isCancelled {
                         finalMessage = "Stopped. You're in control."
@@ -571,8 +502,7 @@ final class AgentCoordinator: ObservableObject {
                     overlayController.overlayState.isDrivingIndicatorVisible = false
                     let confirmationResponse = await waitForUserResponse(
                         promptText: "This can't be undone. Go ahead?",
-                        buttons: [("Do it", .primary, .confirmed), ("Stop", .destructive, .declined)],
-                        clickTargetRect: nil
+                        buttons: [("Yes, go ahead", .primary, .confirmed), ("Stop", .destructive, .declined)]
                     )
                     if confirmationResponse != .confirmed || Task.isCancelled {
                         finalMessage = "Okay, I stopped before that step."
@@ -680,11 +610,9 @@ final class AgentCoordinator: ObservableObject {
 
     private func waitForUserResponse(
         promptText: String,
-        buttons: [(title: String, style: AgentControlButtonDescriptor.Style, response: UserStepResponse)],
-        clickTargetRect: CGRect?
+        buttons: [(title: String, style: AgentControlButtonDescriptor.Style, response: UserStepResponse)]
     ) async -> UserStepResponse {
         resolvePendingUserResponse(.stopped)
-        clickToAdvanceTargetRect = clickTargetRect
 
         let buttonDescriptors = buttons.map { buttonSpecification in
             AgentControlButtonDescriptor(title: buttonSpecification.title, style: buttonSpecification.style) { [weak self] in
@@ -709,7 +637,6 @@ final class AgentCoordinator: ObservableObject {
             }
         }
 
-        clickToAdvanceTargetRect = nil
         if userResponse != .stopped {
             island.showThinking("Okay")
         }
@@ -1057,8 +984,7 @@ final class AgentCoordinator: ObservableObject {
         overlayController.present(mode: .hidden, targetFrameInAppKitCoordinates: nil, captionText: promptText, stepLabelText: nil)
         let saveResponse = await waitForUserResponse(
             promptText: promptText,
-            buttons: [("Save skill", .primary, .confirmed), ("No thanks", .secondary, .declined)],
-            clickTargetRect: nil
+            buttons: [("Save skill", .primary, .confirmed), ("No thanks", .secondary, .declined)]
         )
         guard saveResponse == .confirmed else { return }
 
@@ -1225,11 +1151,6 @@ final class AgentCoordinator: ObservableObject {
     }
 
     // MARK: Safety heuristics
-
-    /// Steps with nothing for the user to click: in Walk me, Saathi does these itself.
-    static func saathiDoesThisStepItself(_ action: PlannedAgentStep.Action) -> Bool {
-        action == .openURL || action == .scroll || action == .wait
-    }
 
     /// Enter is only pressed automatically on a search box, never on a form
     /// field, so "submit" can't send or pay for anything.

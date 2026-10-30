@@ -449,37 +449,15 @@ struct DynamicIslandView: View {
                 .pointerCursor()
             }
             HStack(spacing: 6) {
-                // The mode chips only appear when there's more than one mode.
-                if TrustLevel.allCases.count > 1 {
-                    ForEach(TrustLevel.allCases) { trustLevel in
-                        trustChip(trustLevel)
-                    }
-                }
+                Text("Hold ⌃⌥ to speak instead")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.4))
                 Spacer()
                 Text("Return to go · Esc to close")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.4))
             }
         }
-    }
-
-    private func trustChip(_ trustLevel: TrustLevel) -> some View {
-        let isSelected = settings.trustLevel == trustLevel
-        return Button(action: { settings.trustLevel = trustLevel }) {
-            HStack(spacing: 5) {
-                TrustLevelRingGlyph(trustLevel: trustLevel, isSelected: isSelected)
-                Text(trustLevel.displayName)
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundColor(isSelected ? SaathiColors.captionBackground : .white.opacity(0.75))
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(
-                Capsule().fill(isSelected ? SaathiColors.marigold : Color.white.opacity(0.08))
-            )
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
     }
 
     private func statusRow(icon: AnyView, title: String, detail: String) -> some View {

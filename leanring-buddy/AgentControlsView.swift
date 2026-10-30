@@ -2,7 +2,7 @@
 //  AgentControlsView.swift
 //  leanring-buddy
 //
-//  Saathi's section of the menu bar panel: the Ask box, the trust dial,
+//  Saathi's section of the menu bar panel: the Ask box, the mode note,
 //  narration language, and a one-line view of model provider and spend.
 //
 
@@ -65,50 +65,12 @@ struct AgentControlsView: View {
         )
     }
 
-    // MARK: Trust dial
+    // MARK: Mode
 
     private var trustDial: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // The mode picker only appears when there's more than one mode.
-            if TrustLevel.allCases.count > 1 {
-                HStack(spacing: 0) {
-                    ForEach(TrustLevel.allCases) { trustLevel in
-                        trustLevelButton(trustLevel)
-                    }
-                }
-                .padding(2)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
-                )
-            }
-
-            Text(settings.trustLevel.longDescription)
-                .font(.system(size: 11))
-                .foregroundColor(DS.Colors.textTertiary)
-        }
-    }
-
-    private func trustLevelButton(_ trustLevel: TrustLevel) -> some View {
-        let isSelected = settings.trustLevel == trustLevel
-        return Button(action: {
-            settings.trustLevel = trustLevel
-        }) {
-            HStack(spacing: 5) {
-                TrustLevelRingGlyph(trustLevel: trustLevel, isSelected: isSelected)
-                Text(trustLevel.displayName)
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundColor(isSelected ? DS.Colors.textOnAccent : DS.Colors.textSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected ? DS.Colors.accent : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
+        Text(settings.trustLevel.longDescription)
+            .font(.system(size: 11))
+            .foregroundColor(DS.Colors.textTertiary)
     }
 
     // MARK: Language + spotlight
@@ -205,31 +167,5 @@ struct AgentControlsView: View {
         }
         .buttonStyle(.plain)
         .pointerCursor()
-    }
-}
-
-/// Tiny ring glyph that previews each trust level's ring style.
-struct TrustLevelRingGlyph: View {
-    let trustLevel: TrustLevel
-    let isSelected: Bool
-
-    var body: some View {
-        let glyphColor = isSelected ? DS.Colors.textOnAccent : SaathiColors.marigold
-        ZStack {
-            switch trustLevel {
-            case .showMe:
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(glyphColor, style: StrokeStyle(lineWidth: 1.5, dash: [2.5, 2]))
-            case .walkMeThrough:
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(glyphColor, lineWidth: 1.5)
-            case .justDoIt:
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(glyphColor.opacity(0.35))
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(glyphColor, lineWidth: 1.5)
-            }
-        }
-        .frame(width: 11, height: 9)
     }
 }

@@ -2,44 +2,23 @@
 //  SaathiSettings.swift
 //  leanring-buddy
 //
-//  User-facing settings that persist across launches: the trust dial
-//  and the narration language.
+//  User-facing settings that persist across launches: the narration
+//  language and the spotlight.
 //
 
 import Combine
 import Foundation
 
-/// How much control the user hands over for a task.
+/// Saathi has one mode: it does the task for you, narrating each step, and
+/// pauses before anything irreversible or private.
 enum TrustLevel: String, CaseIterable, Identifiable {
-    /// Point at the next step and explain it. The user does everything.
-    case showMe
-    /// Guide step by step and wait for the user's click before moving on.
-    case walkMeThrough
-    /// Do the task, narrating each step. Pauses before anything irreversible.
     case justDoIt
 
     var id: String { rawValue }
 
-    /// Saathi ships with one mode: Do it. The guided modes (Show me, Walk me)
-    /// are switched off for now; their cases remain only so older saved
-    /// settings still load, and they map to Do it.
-    static var allCases: [TrustLevel] { [.justDoIt] }
+    var displayName: String { "Do it" }
 
-    var displayName: String {
-        switch self {
-        case .showMe: return "Show me"
-        case .walkMeThrough: return "Walk me"
-        case .justDoIt: return "Do it"
-        }
-    }
-
-    var longDescription: String {
-        switch self {
-        case .showMe: return "Points at the next step. You do everything."
-        case .walkMeThrough: return "Guides you step by step. You click, it follows."
-        case .justDoIt: return "Does the whole task for you. Pauses before pay, submit or send."
-        }
-    }
+    var longDescription: String { "Does the whole task for you. Pauses before pay, submit or send." }
 }
 
 enum NarrationLanguage: String, CaseIterable, Identifiable {
@@ -78,9 +57,8 @@ enum NarrationLanguage: String, CaseIterable, Identifiable {
 final class SaathiSettings: ObservableObject {
     static let shared = SaathiSettings()
 
-    @Published var trustLevel: TrustLevel {
-        didSet { UserDefaults.standard.set(trustLevel.rawValue, forKey: "saathi.trustLevel") }
-    }
+    /// Always Do it (kept as a value so receipts can record the mode).
+    let trustLevel: TrustLevel = .justDoIt
 
     @Published var narrationLanguage: NarrationLanguage {
         didSet { UserDefaults.standard.set(narrationLanguage.rawValue, forKey: "saathi.narrationLanguage") }
@@ -92,11 +70,6 @@ final class SaathiSettings: ObservableObject {
     }
 
     private init() {
-        let storedTrustLevel = UserDefaults.standard.string(forKey: "saathi.trustLevel").flatMap(TrustLevel.init(rawValue:))
-        // Only Do it is offered; any older saved choice maps to it.
-        _ = storedTrustLevel
-        self.trustLevel = .justDoIt
-
         let storedLanguage = UserDefaults.standard.string(forKey: "saathi.narrationLanguage").flatMap(NarrationLanguage.init(rawValue:))
         self.narrationLanguage = storedLanguage ?? .english
 

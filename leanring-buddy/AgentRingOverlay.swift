@@ -4,11 +4,10 @@
 //
 //  Saathi's visual identity: a marigold ring that travels across the
 //  screen as a small circle, leaving a fading trail, then morphs into the
-//  exact outline of its target. Its look encodes the trust dial:
+//  exact outline of its target. Its look encodes what is happening:
 //
-//    Show me          dashed outline hugging the target
-//    Walk me through  solid outline with a slow pulse ("your move")
-//    Just do it       filled tint; presses the target with a squeeze + ripple
+//    Pointing         dashed outline hugging the target (answering a question)
+//    Doing it         filled tint; presses the target with a squeeze + ripple
 //    Your turn        parked beside a field with a lock badge (OTP/password)
 //    Confirm          red outline: about to do something irreversible
 //
@@ -24,8 +23,7 @@ import SwiftUI
 enum RingPresentationMode: Equatable {
     case hidden
     case thinking
-    case showMe
-    case walkMeThrough
+    case pointing
     case justDoIt
     case yourTurn
     case awaitingConfirmation
@@ -201,7 +199,7 @@ struct AgentRingOverlayView: View {
 
     private var isTargetPresentationMode: Bool {
         switch overlayState.mode {
-        case .showMe, .walkMeThrough, .justDoIt, .yourTurn, .awaitingConfirmation:
+        case .pointing, .justDoIt, .yourTurn, .awaitingConfirmation:
             return true
         case .hidden, .thinking:
             return false
@@ -260,8 +258,8 @@ struct AgentRingOverlayView: View {
                     .stroke(ringColor, style: ringStrokeStyle)
                     .shadow(color: ringColor.opacity(0.55), radius: 6)
 
-                // Slow outward pulse: "your move" (walk) or "are you sure?" (confirm)
-                if overlayState.mode == .walkMeThrough || overlayState.mode == .awaitingConfirmation {
+                // Slow outward pulse: "are you sure?" before an irreversible step
+                if overlayState.mode == .awaitingConfirmation {
                     TimelineView(.animation) { timelineContext in
                         let pulsePhase = CGFloat(timelineContext.date.timeIntervalSinceReferenceDate
                             .truncatingRemainder(dividingBy: 1.5) / 1.5)
@@ -293,13 +291,13 @@ struct AgentRingOverlayView: View {
 
     private var ringStrokeStyle: StrokeStyle {
         switch overlayState.mode {
-        case .showMe:
+        case .pointing:
             return StrokeStyle(lineWidth: 3, lineCap: .round, dash: [8, 6])
         case .yourTurn:
             return StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [5, 5])
         case .justDoIt, .awaitingConfirmation:
             return StrokeStyle(lineWidth: 3.5, lineCap: .round)
-        case .walkMeThrough, .hidden, .thinking:
+        case .hidden, .thinking:
             return StrokeStyle(lineWidth: 3, lineCap: .round)
         }
     }
