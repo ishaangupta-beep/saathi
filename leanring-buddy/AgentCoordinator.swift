@@ -1098,11 +1098,11 @@ final class AgentCoordinator: ObservableObject {
 
     private static func urlWithoutQuery(_ urlString: String) -> String {
         guard var urlComponents = URLComponents(string: urlString) else { return urlString }
+        // Only the site itself: paths like /channel/<id> or /results are
+        // specific to the request the skill was saved from.
         urlComponents.query = nil
         urlComponents.fragment = nil
-        if urlComponents.path.lowercased().contains("search") || urlComponents.path.lowercased().contains("results") {
-            urlComponents.path = "/"
-        }
+        urlComponents.path = "/"
         return urlComponents.string ?? urlString
     }
 
