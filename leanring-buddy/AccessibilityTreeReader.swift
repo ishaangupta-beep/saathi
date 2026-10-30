@@ -218,6 +218,55 @@ enum AccessibilityTreeReader {
         return nil
     }
 
+    /// Browsers Saathi knows how to drive, in order of preference when more
+    /// than one is running and none is in front.
+    private static let knownBrowserBundleIdentifiers: [String] = [
+        "com.google.Chrome", "company.thebrowser.Browser", "com.brave.Browser",
+        "com.microsoft.edgemac", "com.apple.Safari", "org.mozilla.firefox",
+        "com.google.Chrome.canary", "com.operasoftware.Opera", "com.vivaldi.Vivaldi"
+    ]
+
+    /// Opens a website in the browser the user is actually using.
+    ///  • A browser is in front: load the URL in the current tab (⌘L, paste,
+    ///    Return), so no extra tabs or windows pile up.
+    ///  • Another app is in front but a browser is running: open it there.
+    ///  • No browser running: fall back to the system default browser.
+    /// (Plain NSWorkspace.open always used the default browser, which pulled
+    /// up Safari even when the user was working in Chrome.)
+    static func openURLInUsersBrowser(_ url: URL) async {
+        if let frontApplication = frontmostNonSaathiApplication(),
+           let frontBundleIdentifier = frontApplication.bundleIdentifier,
+           knownBrowserBundleIdentifiers.contains(frontBundleIdentifier) {
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier != frontApplication.processIdentifier {
+                frontApplication.activate()
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            if Task.isCancelled { return }
+            pressKeyCombination(keyCode: 37, withCommand: true) // ⌘L: focus the address bar
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            if Task.isCancelled { return }
+            await typeText(url.absoluteString)
+            if Task.isCancelled { return }
+            pressNamedKey("return")
+            print("🌐 Opened \(url.host ?? url.absoluteString) in the current \(frontApplication.localizedName ?? "browser") tab")
+            return
+        }
+
+        let runningBrowser = knownBrowserBundleIdentifiers.lazy.compactMap { browserBundleIdentifier in
+            NSRunningApplication.runningApplications(withBundleIdentifier: browserBundleIdentifier).first
+        }.first
+        if let runningBrowser, let browserApplicationURL = runningBrowser.bundleURL {
+            let openConfiguration = NSWorkspace.OpenConfiguration()
+            openConfiguration.activates = true
+            NSWorkspace.shared.open([url], withApplicationAt: browserApplicationURL, configuration: openConfiguration, completionHandler: nil)
+            print("🌐 Opened \(url.host ?? url.absoluteString) in \(runningBrowser.localizedName ?? "the running browser")")
+            return
+        }
+
+        NSWorkspace.shared.open(url)
+        print("🌐 Opened \(url.host ?? url.absoluteString) in the default browser")
+    }
+
     /// Brings the user's app back to the front before Saathi acts on it.
     static func activateTargetApplicationIfNeeded() {
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier,

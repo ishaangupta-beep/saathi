@@ -1122,7 +1122,7 @@ final class AgentCoordinator: ObservableObject {
             AccessibilityTreeReader.scroll(downByLines: scrollsUp ? -8 : 8)
         case .openURL:
             if let urlString = step.urlString, let url = URL(string: urlString), url.scheme == "https" || url.scheme == "http" {
-                NSWorkspace.shared.open(url)
+                await AccessibilityTreeReader.openURLInUsersBrowser(url)
             }
         case .wait, .userInputNeeded, .done, .cannotContinue:
             try? await Task.sleep(nanoseconds: 1_000_000_000)
