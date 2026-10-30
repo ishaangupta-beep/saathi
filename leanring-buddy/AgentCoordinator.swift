@@ -505,7 +505,7 @@ final class AgentCoordinator: ObservableObject {
             currentStep.isIrreversible = isIrreversible
 
             let stepLabelText: String
-            if let matchedSkill {
+            if let matchedSkill, stepNumber <= matchedSkill.steps.count {
                 stepLabelText = "Step \(stepNumber) of \(matchedSkill.steps.count)"
             } else {
                 stepLabelText = "Step \(stepNumber)"
@@ -1074,7 +1074,9 @@ final class AgentCoordinator: ObservableObject {
                 targetDescription: completedStep.targetDescription,
                 textTemplate: textTemplate,
                 keyName: completedStep.keyName,
-                urlString: completedStep.urlString,
+                // Keep only the site and page, not the query: a URL like
+                // youtube.com/results?search_query=lofi would replay the old search.
+                urlString: completedStep.urlString.map(Self.urlWithoutQuery),
                 narration: completedStep.narration,
                 isIrreversible: completedStep.isIrreversible
             )
@@ -1092,6 +1094,16 @@ final class AgentCoordinator: ObservableObject {
             timesReplayed: 0
         ))
         SystemSpeechTTSClient.shared.speak("Saved. Next time I'll know this one.")
+    }
+
+    private static func urlWithoutQuery(_ urlString: String) -> String {
+        guard var urlComponents = URLComponents(string: urlString) else { return urlString }
+        urlComponents.query = nil
+        urlComponents.fragment = nil
+        if urlComponents.path.lowercased().contains("search") || urlComponents.path.lowercased().contains("results") {
+            urlComponents.path = "/"
+        }
+        return urlComponents.string ?? urlString
     }
 
     private static func placeholderName(for fieldLabel: String) -> String {
