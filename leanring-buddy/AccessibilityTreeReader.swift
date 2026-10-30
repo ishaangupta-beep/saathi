@@ -552,13 +552,68 @@ enum AccessibilityTreeReader {
         try? await Task.sleep(nanoseconds: 300_000_000)
         if Task.isCancelled { return }
 
-        // Verify the text landed. If it didn't, set the field's value directly
-        // through Accessibility as a last resort.
+        // Verify the text landed. Some sites (Google Flights, travel portals)
+        // swap the clicked box for a new input when it's clicked, so the
+        // focused field is checked too. Only if neither has the text is the
+        // value set directly through Accessibility, as a last resort.
         let fieldValueAfterTyping = stringAttribute(element.underlyingElement, "AXValue") ?? ""
-        if !fieldValueAfterTyping.contains(text) {
+        let focusedFieldValueAfterTyping = focusedTextFieldOfFrontmostApplication().flatMap { stringAttribute($0, "AXValue") } ?? ""
+        if !fieldValueAfterTyping.contains(text) && !focusedFieldValueAfterTyping.contains(text) {
             print("⌨️ Paste didn't land in \"\(element.label)\" (value: \"\(fieldValueAfterTyping.prefix(40))\"), setting it directly")
             AXUIElementSetAttributeValue(element.underlyingElement, "AXValue" as CFString, text as CFString)
         }
+    }
+
+    /// The field that has keyboard focus in the user's app right now.
+    static func focusedTextFieldOfFrontmostApplication() -> AXUIElement? {
+        guard let targetApplication = frontmostNonSaathiApplication() else { return nil }
+        let applicationElement = AXUIElementCreateApplication(targetApplication.processIdentifier)
+        return copyElementAttribute(applicationElement, "AXFocusedUIElement")
+    }
+
+    /// After typing into an autocomplete field (cities, airports, stations,
+    /// addresses), picks the top suggestion with ↓ then Return, the same way
+    /// a person would. This doesn't depend on finding the suggestion list in
+    /// the page structure, which on big sites is often too deep to read.
+    /// Returns the field's value after picking, or nil if no suggestion list
+    /// opened (then the planner carries on as before).
+    static func pickTopSuggestionIfAutocompleteOpened(afterTyping typedText: String, into element: AccessibleScreenElement) async -> String? {
+        let fieldElement = focusedTextFieldOfFrontmostApplication() ?? element.underlyingElement
+        let fieldRole = stringAttribute(fieldElement, "AXRole") ?? element.role
+        let autocompleteKind = (stringAttribute(fieldElement, "AXAutocompleteValue") ?? "").lowercased()
+        let reportsExpandedState = boolAttribute(fieldElement, "AXExpanded") != nil
+        let isAutocompleteField = fieldRole == "AXComboBox" || element.role == "AXComboBox"
+            || autocompleteKind == "list" || autocompleteKind == "both" || reportsExpandedState
+        guard isAutocompleteField else { return nil }
+
+        // Wait for the suggestion list to open (it loads from the network).
+        var suggestionListIsOpen = false
+        for _ in 0..<12 {
+            if Task.isCancelled { return nil }
+            if boolAttribute(fieldElement, "AXExpanded") == true {
+                suggestionListIsOpen = true
+                break
+            }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        guard suggestionListIsOpen else {
+            print("🔽 \"\(element.label)\" looks like autocomplete but no list opened")
+            return nil
+        }
+        // The list often opens with a spinner or recent searches first; give
+        // the real matches a moment to arrive.
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        if Task.isCancelled { return nil }
+
+        pressNamedKey("down")
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        if Task.isCancelled { return nil }
+        pressNamedKey("return")
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        let valueAfterPicking = stringAttribute(fieldElement, "AXValue") ?? ""
+        print("🔽 Picked the top suggestion for \"\(element.label)\" → field shows \"\(valueAfterPicking.prefix(60))\"")
+        return valueAfterPicking
     }
 
     static func clickAtTopLeftPoint(_ point: CGPoint) {

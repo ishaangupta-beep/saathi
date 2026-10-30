@@ -105,6 +105,9 @@ final class AgentCoordinator: ObservableObject {
     /// The notch pill. Display only: it mirrors what the agent is doing and
     /// hosts the Next / Stop / Confirm buttons. It adds no waits or model calls.
     private var island: DynamicIslandController { DynamicIslandController.shared }
+    /// Set by a type step that picked an autocomplete suggestion (the field's
+    /// value afterwards), nil otherwise. Read right after the step runs.
+    private var lastPickedSuggestionValue: String?
 
     private var currentRunTask: Task<Void, Never>?
     private var pendingUserResponseContinuation: CheckedContinuation<UserStepResponse, Never>?
@@ -569,6 +572,7 @@ final class AgentCoordinator: ObservableObject {
 
                 AccessibilityTreeReader.activateTargetApplicationIfNeeded()
                 let signatureBeforeAction = Self.screenSignature(of: observation.accessibilitySnapshot)
+                lastPickedSuggestionValue = nil
                 let willPressEnterAfterTyping = currentStep.action == .type
                     && currentStep.submitsAfterTyping
                     && (targetElement.map(Self.looksLikeSearchField) ?? false)
@@ -584,7 +588,7 @@ final class AgentCoordinator: ObservableObject {
                 // Never waits longer than before; moves on early once the
                 // screen has changed and stopped changing.
                 switch currentStep.action {
-                case .type where !willPressEnterAfterTyping:
+                case .type where !willPressEnterAfterTyping && lastPickedSuggestionValue == nil:
                     // Suggestion lists appear late, so typing keeps a fixed wait.
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
                 case .openURL, .type:
@@ -608,7 +612,7 @@ final class AgentCoordinator: ObservableObject {
                 targetLabel: targetElement?.label,
                 targetDescription: currentStep.targetDescription,
                 typedText: needsUserInput ? nil : currentStep.text,
-                keyName: (currentStep.action == .type && currentStep.submitsAfterTyping && (targetElement.map(Self.looksLikeSearchField) ?? false) && !stepWasDoneByUser) ? "return" : currentStep.keyName,
+                keyName: (currentStep.action == .type && lastPickedSuggestionValue != nil && !stepWasDoneByUser) ? "suggestion" : (currentStep.action == .type && currentStep.submitsAfterTyping && (targetElement.map(Self.looksLikeSearchField) ?? false) && !stepWasDoneByUser) ? "return" : currentStep.keyName,
                 urlString: currentStep.urlString,
                 narration: currentStep.narration,
                 isIrreversible: currentStep.isIrreversible,
@@ -773,7 +777,7 @@ final class AgentCoordinator: ObservableObject {
     - Only type values the user actually gave in the task (like a city or a date).
     - irreversible is true for steps that pay, submit, send, confirm, place an order, book, transfer, or delete.
     - Web forms, step by step:
-      • Autocomplete fields (cities, airports, stations, addresses): type the value, then your NEXT step must click the matching suggestion in the list that appears (marked "option in open list", or visible in the screenshot). Typing alone does not select it.
+      • Autocomplete fields (cities, airports, stations, addresses): just type the value. Saathi then picks the top suggestion automatically (history says "picked the top suggestion"). Check the field's value: if it shows the right place, move on; if it's wrong or empty, click the field, and click the right option in the list (marked "option in open list", or visible in the screenshot).
       • Before moving to the next field, check the field shows the chosen value (see value="…"). If it doesn't, select the suggestion again.
       • Date fields: click the field to open the calendar, move to the right month if needed, then click the day.
       • Dropdowns (popup buttons): click to open, then click the option.
@@ -795,7 +799,14 @@ final class AgentCoordinator: ObservableObject {
         let historyText = completedSteps.isEmpty
             ? "(none yet)"
             : completedSteps.enumerated().map { stepIndex, completedStep in
-                let pressedEnterNote = completedStep.action == .type && completedStep.keyName == "return" ? " then pressed Enter" : ""
+                let pressedEnterNote: String
+                if completedStep.action == .type && completedStep.keyName == "return" {
+                    pressedEnterNote = " then pressed Enter"
+                } else if completedStep.action == .type && completedStep.keyName == "suggestion" {
+                    pressedEnterNote = " then picked the top suggestion (check the field's value)"
+                } else {
+                    pressedEnterNote = ""
+                }
                 let typedValueNote = (completedStep.typedText.map { " typed \"\($0)\"" } ?? "") + pressedEnterNote
                 let noChangeNote = completedStep.screenChangedAfterStep == false ? " (nothing changed on screen)" : ""
                 return "\(stepIndex + 1). \(completedStep.narration) [\(completedStep.action.rawValue)\(typedValueNote) → \(completedStep.targetDescription)]\(noChangeNote)"
@@ -822,7 +833,9 @@ final class AgentCoordinator: ObservableObject {
         //  • when the app exposes too few elements (canvas apps, images)
         let hasUsableAccessibilityTree = snapshot.elements.count >= 3
         let lastCompletedStep = completedSteps.last
-        let justTyped = lastCompletedStep?.action == .type
+        // A picked suggestion doesn't need a look at the screen: the field's
+        // value in the element list shows whether the right one was chosen.
+        let justTyped = lastCompletedStep?.action == .type && lastCompletedStep?.keyName != "suggestion"
         let isRepeatingItself: Bool = {
             guard completedSteps.count >= 2 else { return false }
             let previousStep = completedSteps[completedSteps.count - 2]
@@ -1107,6 +1120,10 @@ final class AgentCoordinator: ObservableObject {
                 if step.submitsAfterTyping && Self.looksLikeSearchField(targetElement) && !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 150_000_000)
                     if !Task.isCancelled { AccessibilityTreeReader.pressNamedKey("return") }
+                } else if !Task.isCancelled {
+                    // Autocomplete field: pick the top suggestion now, so the
+                    // value is really selected (typing alone doesn't select it).
+                    lastPickedSuggestionValue = await AccessibilityTreeReader.pickTopSuggestionIfAutocompleteOpened(afterTyping: textToType, into: targetElement)
                 }
             } else if let clickPoint = topLeftPointForVisionStep(step, observation: observation) {
                 AccessibilityTreeReader.clickAtTopLeftPoint(clickPoint)
