@@ -122,6 +122,18 @@ enum SaathiConfiguration {
         return 15.0
     }
 
+    /// Token allowance for the quick Nemotron Nano calls (routing, skill
+    /// matching, filling skill fields, naming skills). Nano thinks before it
+    /// answers, so a small allowance can cut it off mid-thought.
+    /// Set FAST_MAX_TOKENS=300 in .env to go back to the original, faster-but-
+    /// cut-off behaviour; default 1000.
+    static var fastCallMaxTokens: Int {
+        if let configuredValue = nonEmptyValue(forKey: "FAST_MAX_TOKENS"), let tokenCount = Int(configuredValue), tokenCount > 0 {
+            return tokenCount
+        }
+        return 1000
+    }
+
     // MARK: - Tavily
 
     static var tavilyAPIKey: String? {

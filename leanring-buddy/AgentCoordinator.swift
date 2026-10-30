@@ -306,7 +306,7 @@ final class AgentCoordinator: ObservableObject {
                 role: .fast,
                 messages: [NemotronChatMessage(role: .user, text: classificationPrompt)],
                 purpose: "Route request: task or question",
-                maxTokens: 1000,
+                maxTokens: SaathiConfiguration.fastCallMaxTokens,
                 temperature: 0
             )
             return responseText.uppercased().contains("TASK")
@@ -965,7 +965,7 @@ final class AgentCoordinator: ObservableObject {
             role: .fast,
             messages: [NemotronChatMessage(role: .user, text: fillPrompt)],
             purpose: "Fill skill field from request",
-            maxTokens: 1000,
+            maxTokens: SaathiConfiguration.fastCallMaxTokens,
             temperature: 0
         ) else {
             return nil
@@ -998,7 +998,7 @@ final class AgentCoordinator: ObservableObject {
             role: .fast,
             messages: [NemotronChatMessage(role: .user, text: namingPrompt)],
             purpose: "Name the new skill",
-            maxTokens: 1000,
+            maxTokens: SaathiConfiguration.fastCallMaxTokens,
             temperature: 0.2
         ), let namingJSON = NemotronClient.extractFirstJSONObject(from: namingResponse) {
             if let generatedName = namingJSON["name"] as? String, !generatedName.isEmpty { skillName = generatedName }

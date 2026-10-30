@@ -124,7 +124,7 @@ final class SkillStore: ObservableObject {
                 role: .fast,
                 messages: [NemotronChatMessage(role: .user, text: matchingPrompt)],
                 purpose: "Match request to a saved skill",
-                maxTokens: 1000,
+                maxTokens: SaathiConfiguration.fastCallMaxTokens,
                 temperature: 0
             )
             let digitsOnly = responseText.filter(\.isNumber)
