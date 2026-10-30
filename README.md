@@ -13,22 +13,17 @@ A black pill sits at the top centre of your screen, blending into the MacBook no
 - **Press ⌘⇧Space** (or click the pill) and type what you want, or **hold Control + Option and talk**.
 - The pill shows what Saathi is doing ("Step 3 · selecting Goa") and the Next / Stop / Confirm buttons when it needs you. **Esc** stops everything.
 
-## The trust dial
+## How it works
 
-Two settings: be guided, or hand it over.
+Say what you need, and Saathi does it on your Mac while you watch: it opens the right site, clicks, types and scrolls, and narrates every step with the marigold ring.
 
-| Mode | What Saathi does | What the ring looks like |
-|---|---|---|
-| **Walk me** | Guides you one step at a time. You click; Saathi follows and shows the next step. | Solid outline with a slow "your move" pulse |
-| **Do it** | Does the whole task itself and narrates each step. | Filled tint; the ring presses the button |
-
-In both modes:
+Safety, built in:
 
 - **Cookie banners and pop-ups are cleared first** (declining optional cookies when it can), so Saathi never clicks a button hidden behind an overlay.
 - **Hard pause before anything irreversible** — pay, submit, send, book, delete. The ring turns red and waits for you to confirm.
 - **Saathi never types passwords, OTPs, PINs, card or ID numbers.** The ring parks beside the field with a lock badge and says "your turn".
 - **Esc stops everything instantly.** While Saathi is driving, the screen edge glows marigold with an "Esc to stop" label.
-- **"Do it" is capped at 15 steps**, then hands control back in Walk me mode.
+- **Runs are capped at 15 autonomous steps**, then Saathi hands control back to you.
 
 ## Skills: it gets faster the more you use it
 
@@ -77,7 +72,7 @@ Requirements: macOS 14.2+ and Apple's Command Line Tools (`xcode-select --instal
    ```
    The script builds with SwiftPM, packages `~/Applications/Saathi.app` and signs it with a local self-signed "Saathi Dev" certificate it creates once, so macOS keeps your permissions across rebuilds.
 3. Saathi appears in the **menu bar** (not the Dock). Click the ring icon and grant Accessibility, Screen Recording and Microphone, then quit and reopen Saathi once so Screen Recording takes effect.
-4. Press **⌘⇧Space** and type what you need, or hold **Control + Option** and say it. Pick **Walk me** or **Do it** on the dial.
+4. Press **⌘⇧Space** and type what you need, or hold **Control + Option** and say it. 
 
 > Always launch with `open` (or from Finder). Running the binary directly from Terminal gives the permissions to Terminal instead of Saathi.
 
@@ -94,12 +89,12 @@ Requirements: macOS 14.2+ and Apple's Command Line Tools (`xcode-select --instal
 | `SkillStore.swift` | Saving, matching and replaying skills |
 | `ActionReceiptStore.swift`, `AgentDashboardWindow.swift` | Receipts, skills and model-routing window |
 | `DynamicIsland.swift` | The notch pill: ask box (⌘⇧Space), status, and the Next / Stop / Confirm buttons |
-| `AgentControlsView.swift` | Ask box, trust dial and language switch in the menu bar panel |
+| `AgentControlsView.swift` | Ask box and language switch in the menu bar panel |
 | `SystemSpeechTTSClient.swift` | Free, offline narration with macOS voices, including Hindi |
 
 ## Credits
 
-Saathi is built on [Clicky](https://github.com/farzaa/clicky) by Farza (MIT), which provided the macOS foundation: menu bar app, push-to-talk, screen capture and the cursor overlay window. On top of it, Saathi adds the task agent, the trust dial, Accessibility-tree targeting, skills, the privacy shield, Tavily research, receipts and model routing, the marigold ring identity, Hindi narration, and a move from Claude/AssemblyAI/ElevenLabs to NVIDIA Nemotron on Nebius Token Factory with free on-device speech.
+Saathi is built on [Clicky](https://github.com/farzaa/clicky) by Farza (MIT), which provided the macOS foundation: menu bar app, push-to-talk, screen capture and the cursor overlay window. On top of it, Saathi adds the task agent, Accessibility-tree targeting, skills, the privacy shield, Tavily research, receipts and model routing, the marigold ring identity, Hindi narration, and a move from Claude/AssemblyAI/ElevenLabs to NVIDIA Nemotron on Nebius Token Factory with free on-device speech.
 
 ## License
 

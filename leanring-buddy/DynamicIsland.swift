@@ -449,8 +449,11 @@ struct DynamicIslandView: View {
                 .pointerCursor()
             }
             HStack(spacing: 6) {
-                ForEach(TrustLevel.allCases) { trustLevel in
-                    trustChip(trustLevel)
+                // The mode chips only appear when there's more than one mode.
+                if TrustLevel.allCases.count > 1 {
+                    ForEach(TrustLevel.allCases) { trustLevel in
+                        trustChip(trustLevel)
+                    }
                 }
                 Spacer()
                 Text("Return to go · Esc to close")

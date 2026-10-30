@@ -69,16 +69,19 @@ struct AgentControlsView: View {
 
     private var trustDial: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 0) {
-                ForEach(TrustLevel.allCases) { trustLevel in
-                    trustLevelButton(trustLevel)
+            // The mode picker only appears when there's more than one mode.
+            if TrustLevel.allCases.count > 1 {
+                HStack(spacing: 0) {
+                    ForEach(TrustLevel.allCases) { trustLevel in
+                        trustLevelButton(trustLevel)
+                    }
                 }
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                )
             }
-            .padding(2)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            )
 
             Text(settings.trustLevel.longDescription)
                 .font(.system(size: 11))

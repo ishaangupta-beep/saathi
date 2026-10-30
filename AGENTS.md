@@ -4,7 +4,7 @@ This project is Saathi, a fork of Clicky for the Nebius x NVIDIA Global AI Hacka
 
 - AI: NVIDIA Nemotron 3 (Nano Omni = vision, Super = planning, Nano = fast) via Nebius Token Factory's OpenAI-compatible API (`NemotronClient.swift`). Keys come from `.env` in the repo root (`SaathiConfiguration.swift`), not a Cloudflare Worker. (The original Cloudflare `worker/` proxy was removed.)
 - Speech: Apple Speech in (`VoiceTranscriptionProvider = apple`), macOS voices out (`SystemSpeechTTSClient.swift`). ElevenLabs, AssemblyAI, PostHog analytics and the email form are disabled.
-- Agent: `AgentCoordinator.swift` runs tasks (skills → Tavily research → observe → plan → act/wait) with the trust dial (`SaathiSettings.swift`). Targets come from the Accessibility tree (`AccessibilityTreeReader.swift`), vision is the fallback.
+- Agent: `AgentCoordinator.swift` runs tasks (skills → Tavily research → observe → plan → act) in a single "Do it" mode (`SaathiSettings.swift`; the guided Show me / Walk me modes are switched off). Targets come from the Accessibility tree (`AccessibilityTreeReader.swift`), vision is the fallback.
 - Visuals: `AgentRingOverlay.swift` (marigold ring, caption chip, driving glow, floating controls). Clicky's cursor follower is restyled to a small marigold ring and no longer flies to targets.
 - Build without Xcode: `./build-saathi.sh` (Command Line Tools + `Package.swift`, outputs `~/Applications/Saathi.app`, signed with a local self-signed "Saathi Dev" certificate so permissions survive rebuilds). PostHog and Sparkle were removed from the code; `ClickyAnalytics` is a no-op stub.
 - UI: `DynamicIsland.swift` — notch pill (⌘⇧Space ask box, status, Next/Stop/Confirm). Display only; it does not change the agent loop or its timing.

@@ -20,9 +20,10 @@ enum TrustLevel: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The dial offers two choices: guide me, or do it for me. Show me is
-    /// kept only so older saved settings still load (it maps to Walk me).
-    static var allCases: [TrustLevel] { [.walkMeThrough, .justDoIt] }
+    /// Saathi ships with one mode: Do it. The guided modes (Show me, Walk me)
+    /// are switched off for now; their cases remain only so older saved
+    /// settings still load, and they map to Do it.
+    static var allCases: [TrustLevel] { [.justDoIt] }
 
     var displayName: String {
         switch self {
@@ -92,8 +93,9 @@ final class SaathiSettings: ObservableObject {
 
     private init() {
         let storedTrustLevel = UserDefaults.standard.string(forKey: "saathi.trustLevel").flatMap(TrustLevel.init(rawValue:))
-        // Show me was folded into Walk me.
-        self.trustLevel = (storedTrustLevel == .showMe ? .walkMeThrough : storedTrustLevel) ?? .walkMeThrough
+        // Only Do it is offered; any older saved choice maps to it.
+        _ = storedTrustLevel
+        self.trustLevel = .justDoIt
 
         let storedLanguage = UserDefaults.standard.string(forKey: "saathi.narrationLanguage").flatMap(NarrationLanguage.init(rawValue:))
         self.narrationLanguage = storedLanguage ?? .english
