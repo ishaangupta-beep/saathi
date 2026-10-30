@@ -20,3 +20,4 @@ xcuserdata/
 # Local notes and parked files
 _parked/
 gemini-settings.txt
+*.log

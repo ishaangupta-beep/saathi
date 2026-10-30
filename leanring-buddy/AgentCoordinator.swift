@@ -344,6 +344,11 @@ final class AgentCoordinator: ObservableObject {
     private func executeRun(taskDescription: String, trustLevel: TrustLevel) async {
         isRunning = true
         statusText = "Working"
+        let runStartDate = Date()
+        print("▶️ TASK [\(trustLevel.displayName)]: \(taskDescription)")
+        defer {
+            print(String(format: "⏹ RUN ENDED after %.1fs", Date().timeIntervalSince(runStartDate)))
+        }
         transientCaptionClearTask?.cancel()
         ActionReceiptStore.shared.beginReceipt(taskDescription: taskDescription, trustLevel: trustLevel)
         overlayController.present(mode: .thinking, targetFrameInAppKitCoordinates: nil, captionText: "On it: \(taskDescription)", stepLabelText: nil)
@@ -408,6 +413,7 @@ final class AgentCoordinator: ObservableObject {
             // call), and it tells the planner when a click silently failed.
             if let signatureBeforeLastAction, let lastIndex = completedSteps.indices.last, !completedSteps[lastIndex].wasDoneByUser {
                 completedSteps[lastIndex].screenChangedAfterStep = Self.screenSignature(of: observation.accessibilitySnapshot) != signatureBeforeLastAction
+                print("   ↳ screen changed: \(completedSteps[lastIndex].screenChangedAfterStep == true ? "yes" : "NO")")
             }
             signatureBeforeLastAction = nil
 
@@ -469,6 +475,7 @@ final class AgentCoordinator: ObservableObject {
             }
             if Task.isCancelled { return }
             guard var currentStep = plannedStep else { break stepLoop }
+            Self.logStepTrace(stepNumber: stepNumber, step: currentStep, snapshot: observation.accessibilitySnapshot, usedSavedSkill: skillHintText == nil && matchedSkill != nil && currentStep.modelRoleUsed != .reasoning && currentStep.modelRoleUsed != .vision)
 
             if currentStep.action == .done {
                 runSucceeded = true
@@ -626,6 +633,7 @@ final class AgentCoordinator: ObservableObject {
     }
 
     private func finishRun(outcome: String, succeeded: Bool) {
+        print("\(succeeded ? "✅ SUCCEEDED" : "❌ DID NOT FINISH"): \(outcome)")
         ActionReceiptStore.shared.finishReceipt(finalOutcome: outcome)
         overlayController.overlayState.isDrivingIndicatorVisible = false
         isRunning = false
@@ -1200,6 +1208,31 @@ final class AgentCoordinator: ObservableObject {
             previousSignature = currentSignature
             try? await Task.sleep(nanoseconds: 250_000_000)
         }
+    }
+
+    // MARK: Test trace
+
+    /// One line per step in the log, so a failed run can be diagnosed
+    /// afterwards. Typed text is logged by length only (it may be personal).
+    private static func logStepTrace(stepNumber: Int, step: PlannedAgentStep, snapshot: AccessibilitySnapshot, usedSavedSkill: Bool) {
+        let targetElement = step.elementID.flatMap { snapshot.element(withID: $0) }
+        let targetText: String
+        if let targetElement {
+            targetText = "#\(targetElement.id) \(targetElement.role.replacingOccurrences(of: "AX", with: "")) \"\(targetElement.label.prefix(50))\"\(targetElement.isInsideOverlay ? " (in pop-up)" : "")"
+        } else if let screenshotPoint = step.screenshotPoint {
+            targetText = "vision point (\(Int(screenshotPoint.x)),\(Int(screenshotPoint.y)))"
+        } else {
+            targetText = step.targetDescription.isEmpty ? "-" : step.targetDescription
+        }
+        var detailText = ""
+        if let typedText = step.text, step.action == .type { detailText += " typed \(typedText.count) chars\(step.submitsAfterTyping ? " + Enter" : "")" }
+        if let keyName = step.keyName, step.action != .type { detailText += " key=\(keyName)" }
+        if let urlString = step.urlString { detailText += " url=\(urlString)" }
+        let sourceText: String
+        if step.isOverlayDismissal { sourceText = "overlay rule" }
+        else if usedSavedSkill { sourceText = "saved skill" }
+        else { sourceText = step.modelRoleUsed?.rawValue ?? "rule" }
+        print("🧭 STEP \(stepNumber) [\(sourceText)] \(step.action.rawValue) → \(targetText)\(detailText)\(step.isIrreversible ? " ⚠️irreversible" : "") | page: \(snapshot.webPageURL?.host ?? snapshot.applicationName), \(snapshot.elements.count) elements | \"\(step.narration.prefix(90))\"")
     }
 
     // MARK: Pop-ups and cookie banners
